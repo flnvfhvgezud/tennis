@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Tennis Game</title>
+<style>
+  body {
+    background: #000;
+    margin: 0;
+    overflow: hidden;
+    color: white;
+    font-family: Arial, sans-serif;
+    user-select: none;
+  }
+  #gameCanvas {
+    display: block;
+    margin: auto;
+    background: #111;
+    border: 2px solid white;
+  }
+  #scoreboard {
+    text-align: center;
+    margin-top: 10px;
+    font-size: 24px;
+  }
+</style>
+</head>
+<body>
+
+<canvas id="gameCanvas" width="800" height="500"></canvas>
+<div id="scoreboard">Player: 0 &nbsp;&nbsp;&nbsp; CPU: 0</div>
+
+<script>
+  const canvas = document.getElementById("gameCanvas");
+  const ctx = canvas.getContext("2d");
+
+  const WIDTH = canvas.width;
+  const HEIGHT = canvas.height;
+
+  // Paddle settings
+  const PADDLE_WIDTH = 10;
+  const PADDLE_HEIGHT = 100;
+  const PADDLE_SPEED = 7;
+
+  // Ball settings
+  const BALL_SIZE = 20;
+  let ballSpeedX = 5;
+  let ballSpeedY = 5;
+
+  // Player paddle
+  const player = {
+    x: 20,
+    y: HEIGHT/2 - PADDLE_HEIGHT/2,
+    width: PADDLE_WIDTH,
+    height: PADDLE_HEIGHT,
+    dy: 0
+  };
+
+  // CPU paddle
+  const cpu = {
+    x: WIDTH - 20 - PADDLE_WIDTH,
+    y: HEIGHT/2 - PADDLE_HEIGHT/2,
+    width: PADDLE_WIDTH,
+    height: PADDLE_HEIGHT,
+    dy: 0
+  };
+
+  // Ball
+  const ball = {
+    x: WIDTH/2 - BALL_SIZE/2,
+    y: HEIGHT/2 - BALL_SIZE/2,
+    size: BALL_SIZE,
+    dx: ballSpeedX * (Math.random() < 0.5 ? 1 : -1),
+    dy: ballSpeedY * (Math.random() < 0.5 ? 1 : -1)
+  };
+
+  // Scores
+  let playerScore = 0;
+  let cpuScore = 0;
+
+  // Keyboard control
+  const keys = {};
+
+  window.addEventListener('keydown', e => {
+    keys[e.key.toLowerCase()] = true;
+  });
+
+  window.addEventListener('keyup', e => {
+    keys[e.key.toLowerCase()] = false;
+  });
+
+  function resetBall() {
+    ball.x = WIDTH/2 - BALL_SIZE/2;
+    ball.y = HEIGHT/2 - BALL_SIZE/2;
+    ball.dx = ballSpeedX * (Math.random() < 0.5 ? 1 : -1);
+    ball.dy = ballSpeedY * (Math.random() < 0.5 ? 1 : -1);
+  }
+
+  function drawRect(x, y, w, h, color) {
+    ctx.fillStyle = color;
+    ctx.fillRect(x, y, w, h);
+  }
+
+  function drawCircle(x, y, r, color) {
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  function drawNet() {
+    ctx.fillStyle = "white";
+    const netWidth = 4;
+    const netHeight = 20;
+    for(let i = 0; i < HEIGHT; i += netHeight * 2) {
+      ctx.fillRect(WIDTH/2 - netWidth/2, i, netWidth, netHeight);
+    }
+  }
+
+  function draw() {
+    // Clear canvas
+    drawRect(0, 0, WIDTH, HEIGHT, "black");
+
+    // Draw net
+    drawNet();
+
+    // Draw paddles
+    drawRect(player.x, player.y, player.width, player.height, "white");
+    drawRect(cpu.x, cpu.y, cpu.width, cpu.height, "white");
+
+    // Draw ball
+    drawCircle(ball.x + ball.size/2, ball.y + ball.size/2, ball.size/2, "white");
+
+    // Draw scores
+    document.getElementById("scoreboard").textContent = `Player: ${playerScore}   CPU: ${cpuScore}`;
+  }
+
+  function update() {
+    // Move player paddle
+    if (keys['w']) {
+      player.y -= PADDLE_SPEED;
+    } else if (keys['s']) {
+      player.y += PADDLE_SPEED;
+    }
+    // Clamp player paddle inside canvas
+    if (player.y < 0) player.y = 0;
+    if (player.y + player.height > HEIGHT) player.y = HEIGHT - player.height;
+
+    // Move CPU paddle - simple AI: follow the ball with some delay
+    if (cpu.y + cpu.height/2 < ball.y + ball.size/2) {
+      cpu.y += PADDLE_SPEED - 2;
+    } else if (cpu.y + cpu.height/2 > ball.y + ball.size/2) {
+      cpu.y -= PADDLE_SPEED - 2;
+    }
+    // Clamp CPU paddle
+    if (cpu.y < 0) cpu.y = 0;
+    if (cpu.y + cpu.height > HEIGHT) cpu.y = HEIGHT - cpu.height;
+
+    // Move ball
+    ball.x += ball.dx;
+    ball.y += ball.dy;
+
+    // Ball collision with top/bottom walls
+    if (ball.y <= 0 || ball.y + ball.size >= HEIGHT) {
+      ball.dy *= -1;
+    }
+
+    // Ball collision with player paddle
+    if (ball.x <= player.x + player.width &&
+        ball.x >= player.x &&
+        ball.y + ball.size >= player.y &&
+        ball.y <= player.y + player.height) {
+      ball.dx *= -1;
+
+      // Change angle depending on where it hits the paddle
+      let collidePoint = (ball.y + ball.size/2) - (player.y + player.height/2);
+      collidePoint = collidePoint / (player.height/2);
+      let angleRad = collidePoint * (Math.PI / 4); // max 45 degree angle
+
+      let speed = Math.sqrt(ball.dx * ball.dx + ball.dy * ball.dy);
+      ball.dx = speed * Math.cos(angleRad);
+      ball.dy = speed * Math.sin(angleRad);
+      if (ball.dx < 0) ball.dx = -ball.dx; // ensure ball moves right after hitting player
+    }
+
+    // Ball collision with CPU paddle
+    if (ball.x + ball.size >= cpu.x &&
+        ball.x + ball.size <= cpu.x + cpu.width &&
+        ball.y + ball.size >= cpu.y &&
+        ball.y <= cpu.y + cpu.height) {
+      ball.dx *= -1;
+
+      let collidePoint = (ball.y + ball.size/2) - (cpu.y + cpu.height/2);
+      collidePoint = collidePoint / (cpu.height/2);
+      let angleRad = collidePoint * (Math.PI / 4);
+
+      let speed = Math.sqrt(ball.dx * ball.dx + ball.dy * ball.dy);
+      ball.dx = -speed * Math.cos(angleRad);
+      ball.dy = speed * Math.sin(angleRad);
+      if (ball.dx > 0) ball.dx = -ball.dx; // ensure ball moves left after hitting CPU
+    }
+
+    // Score check
+    if (ball.x < 0) {
+      cpuScore++;
+      resetBall();
+    } else if (ball.x + ball.size > WIDTH) {
+      playerScore++;
+      resetBall();
+    }
+  }
+
+  function loop() {
+    update();
+    draw();
+    requestAnimationFrame(loop);
+  }
+
+  // Start game
+  loop();
+</script>
+
+</body>
+</html>
